@@ -70,16 +70,6 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("api status %d: %s", e.StatusCode, e.Body)
 }
 
-// APIError captures non-200 responses to allow inspection of the status code.
-type APIError struct {
-	StatusCode int
-	Body       string
-}
-
-func (e *APIError) Error() string {
-	return fmt.Sprintf("api status %d: %s", e.StatusCode, e.Body)
-}
-
 func NewClient(apiKey string) *Client {
 	return &Client{
 		apiKey: apiKey,
@@ -89,20 +79,7 @@ func NewClient(apiKey string) *Client {
 
 // ChatCompletion attempts to get a response.
 // If the API returns ANY non-2xx status (429, 500, 400, etc.), it cycles to the next model.
-// ChatCompletion attempts to get a response.
-// If the API returns ANY non-2xx status (429, 500, 400, etc.), it cycles to the next model.
 func (c *Client) ChatCompletion(messages []Message) (string, error) {
-	var lastErr error
-
-	for _, modelConf := range prioritizedModels {
-		reqBody := Request{
-			Model:       modelConf.ID,
-			Stream:      false,
-			MaxTokens:   modelConf.MaxCtx, // Uses the specific max context for the current model
-			Temperature: 1.0,
-			TopP:        1,
-			Messages:    messages,
-		}
 	var lastErr error
 
 	for _, modelConf := range prioritizedModels {
@@ -153,21 +130,13 @@ func (c *Client) makeRequest(reqBody Request) (string, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to perform request: %w", err)
-		return "", fmt.Errorf("failed to perform request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// If status code is not 2xx (e.g., 200, 201), return an APIError.
 	// This triggers the loop in ChatCompletion to try the next model.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-	// If status code is not 2xx (e.g., 200, 201), return an APIError.
-	// This triggers the loop in ChatCompletion to try the next model.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", &APIError{
-			StatusCode: resp.StatusCode,
-			Body:       string(bodyBytes),
-		}
 		return "", &APIError{
 			StatusCode: resp.StatusCode,
 			Body:       string(bodyBytes),
@@ -185,8 +154,10 @@ func (c *Client) makeRequest(reqBody Request) (string, error) {
 
 	content := apiResp.Choices[0].Message.Content
 
+	// Remove <think> tags and their content from the response
 	content = thinkRegex.ReplaceAllString(content, "")
 
+	// Optional: Trim whitespace that might result from removing the tags
 	content = strings.TrimSpace(content)
 
 	return content, nil
