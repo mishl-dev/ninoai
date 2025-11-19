@@ -297,8 +297,8 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 			// Logic to use only the recent 2 messages
 			if len(recentMsgs) > 0 {
 				messagesToUse := recentMsgs
-				if len(recentMsgs) > 2 {
-					messagesToUse = recentMsgs[len(recentMsgs)-2:]
+				if len(recentMsgs) > 6 {
+					messagesToUse = recentMsgs[len(recentMsgs)-6:]
 				}
 				contextStr = strings.Join(messagesToUse, "\n")
 			}
