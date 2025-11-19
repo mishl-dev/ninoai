@@ -60,5 +60,8 @@ Examples:
 		return false, ""
 	}
 	
-	return true, cleaned
+	// Remove quotes from memory content before saving
+	finalMemory := strings.Trim(cleaned, "\"")
+
+	return true, finalMemory
 }

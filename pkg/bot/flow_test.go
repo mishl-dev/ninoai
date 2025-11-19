@@ -161,6 +161,7 @@ func TestMessageFlow(t *testing.T) {
 	var getRecentMessagesCalled bool
 	var addRecentMessageCalls int
 	var addMemoryCalled bool
+	var memoryTextAdded string
 	var finalPrompt string
 
 	mockMemory.SearchFunc = func(userId string, queryVector []float32, limit int) ([]string, error) {
@@ -219,6 +220,7 @@ func TestMessageFlow(t *testing.T) {
 
 	mockMemory.AddFunc = func(userId string, text string, vector []float32) error {
 		addMemoryCalled = true
+		memoryTextAdded = text
 		return nil
 	}
 
@@ -310,6 +312,44 @@ func TestMessageFlow(t *testing.T) {
 		// Assert
 		if !addMemoryCalled {
 			t.Error("Expected Add (long-term memory) to be called, but it wasn't")
+		}
+	})
+
+	// Test Case 3: Memory with quotes
+	t.Run("Memory with quotes", func(t *testing.T) {
+		// Reset spies
+		addMemoryCalled = false
+		memoryTextAdded = ""
+
+		// Mock Cerebras to return a memory with quotes
+		mockCerebras.ChatCompletionFunc = func(messages []cerebras.Message) (string, error) {
+			for _, msg := range messages {
+				if strings.Contains(msg.Content, "Analyze the following interaction") {
+					return `"User loves to code."`, nil // Memory agent returns this
+				}
+			}
+			return "This is a standard response.", nil
+		}
+
+		// Trigger
+		handler.HandleMessage(mockSession, &discordgo.MessageCreate{
+			Message: &discordgo.Message{
+				Author:  &discordgo.User{ID: "user123", Username: "testuser"},
+				Content: "I love to code.", // User message that will trigger memory
+				Mentions: []*discordgo.User{
+					{ID: "testbot"},
+				},
+			},
+		})
+		handler.WaitForReady()
+
+		// Assert
+		if !addMemoryCalled {
+			t.Error("Expected Add (long-term memory) to be called, but it wasn't")
+		}
+		expectedMemory := "User loves to code."
+		if memoryTextAdded != expectedMemory {
+			t.Errorf("Expected memory to be '%s', but got '%s'", expectedMemory, memoryTextAdded)
 		}
 	})
 }
