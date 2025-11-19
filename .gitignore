@@ -34,8 +34,6 @@ storage/
 *.md
 !README.md
 
-# CI/CD
-.github/
 
 # OS files
 .DS_Store
