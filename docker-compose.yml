@@ -15,16 +15,14 @@ services:
       - SURREAL_DB_USER=${SURREAL_DB_USER}
       - SURREAL_DB_PASS=${SURREAL_DB_PASS}
     volumes:
-      - ./storage:/app/storage
+      - ninoai_data:/app/storage
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
     networks:
       - ninoai-network
 
 networks:
   ninoai-network:
     driver: bridge
+
+volumes:
+  ninoai_data:
