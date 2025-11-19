@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -24,7 +25,7 @@ type ModelConfig struct {
 	MaxCtx int
 }
 
-var prioritizedModels = []ModelConfig{
+var PrioritizedModels = []ModelConfig{
 	{ID: "zai-glm-4.6", MaxCtx: 64000},
 	{ID: "qwen-3-32b", MaxCtx: 65536},
 	{ID: "gpt-oss-120b", MaxCtx: 65536},
@@ -82,7 +83,8 @@ func NewClient(apiKey string) *Client {
 func (c *Client) ChatCompletion(messages []Message) (string, error) {
 	var lastErr error
 
-	for _, modelConf := range prioritizedModels {
+	for _, modelConf := range PrioritizedModels {
+		log.Printf("Attempting to use model: %s", modelConf.ID)
 		reqBody := Request{
 			Model:       modelConf.ID,
 			Stream:      false,
@@ -159,6 +161,12 @@ func (c *Client) makeRequest(reqBody Request) (string, error) {
 
 	// Optional: Trim whitespace that might result from removing the tags
 	content = strings.TrimSpace(content)
+
+	// Remove surrounding quotes if present
+	if len(content) >= 2 && strings.HasPrefix(content, "\"") && strings.HasSuffix(content, "\"") {
+		content = content[1 : len(content)-1]
+		content = strings.TrimSpace(content)
+	}
 
 	return content, nil
 }

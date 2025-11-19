@@ -95,6 +95,11 @@ func TestHandler_Flow(t *testing.T) {
 	cerebrasClient := cerebras.NewClient(cerebrasKey)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
 
+	// Override prioritized models for testing to avoid excessive retries
+	cerebras.PrioritizedModels = []cerebras.ModelConfig{
+		{ID: "llama-3.3-70b", MaxCtx: 65536},
+	}
+
 	// Use a temp dir for memory
 	tmpDir, err := os.MkdirTemp("", "ninoai_flow_test")
 	if err != nil {
@@ -162,7 +167,7 @@ func TestHandler_Flow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FAIL: Embedding error: %v", err)
 	}
-	
+
 	matches, err := memoryStore.Search("test_user_1", emb, 5)
 	if err != nil {
 		t.Fatalf("FAIL: Memory search error: %v", err)
@@ -198,6 +203,11 @@ func TestHandler_FlowStructure(t *testing.T) {
 
 	cerebrasClient := cerebras.NewClient(cerebrasKey)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
+
+	// Override prioritized models for testing
+	cerebras.PrioritizedModels = []cerebras.ModelConfig{
+		{ID: "llama-3.3-70b", MaxCtx: 65536},
+	}
 
 	tmpDir, err := os.MkdirTemp("", "ninoai_structure_test")
 	if err != nil {
@@ -309,6 +319,11 @@ func TestHandler_DMBehavior(t *testing.T) {
 
 	cerebrasClient := cerebras.NewClient(cerebrasKey)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
+
+	// Override prioritized models for testing
+	cerebras.PrioritizedModels = []cerebras.ModelConfig{
+		{ID: "llama-3.3-70b", MaxCtx: 65536},
+	}
 
 	tmpDir, err := os.MkdirTemp("", "ninoai_dm_test")
 	if err != nil {

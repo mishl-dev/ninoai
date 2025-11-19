@@ -53,10 +53,11 @@ type EmbeddingClient interface {
 }
 
 type Handler struct {
-	cerebrasClient  CerebrasClient
-	embeddingClient EmbeddingClient
-	memoryStore     memory.Store
-	memoryAgent     *MemoryAgent
+	cerebrasClient   CerebrasClient
+	embeddingClient  EmbeddingClient
+	memoryStore      memory.Store
+	memoryAgent      *MemoryAgent
+	taskAgent        *TaskAgent
 	botID            string
 	emojiCache       map[string][]string // guildID -> filtered emoji names
 	emojiCacheMu     sync.RWMutex
@@ -68,10 +69,11 @@ type Handler struct {
 
 func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store) *Handler {
 	h := &Handler{
-		cerebrasClient:  c,
-		embeddingClient: e,
-		memoryStore:     m,
-		memoryAgent:     NewMemoryAgent(c),
+		cerebrasClient:   c,
+		embeddingClient:  e,
+		memoryStore:      m,
+		memoryAgent:      NewMemoryAgent(c),
+		taskAgent:        NewTaskAgent(c),
 		emojiCache:       make(map[string][]string),
 		emojiCachePath:   "storage/emoji_cache.json",
 		lastMessageTimes: make(map[string]time.Time),
@@ -298,30 +300,29 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	// Get recent context (Rolling Chat Context)
 	recentMsgs := h.getRecentMessages(m.Author.ID)
 
-
 	if !shouldReply {
-			contextStr := "(No recent context)"
-			
-			// Logic to use only the recent 2 messages
-			if len(recentMsgs) > 0 {
-				messagesToUse := recentMsgs
-				if len(recentMsgs) > 6 {
-					messagesToUse = recentMsgs[len(recentMsgs)-6:]
-				}
-				contextStr = strings.Join(messagesToUse, "\n")
-			}
+		contextStr := "(No recent context)"
 
-			// Use LLM to decide with context
-			decisionPrompt := fmt.Sprintf(DecisionPrompt, contextStr, m.Content)
-			decisionMsg := []cerebras.Message{
-				{Role: "system", Content: "You are a decision engine."},
-				{Role: "user", Content: decisionPrompt},
+		// Logic to use only the recent 2 messages
+		if len(recentMsgs) > 0 {
+			messagesToUse := recentMsgs
+			if len(recentMsgs) > 6 {
+				messagesToUse = recentMsgs[len(recentMsgs)-6:]
 			}
-			resp, err := h.cerebrasClient.ChatCompletion(decisionMsg)
-			if err == nil && strings.Contains(resp, "[REPLY]") {
-				shouldReply = true
-			}
+			contextStr = strings.Join(messagesToUse, "\n")
 		}
+
+		// Use LLM to decide with context
+		decisionPrompt := fmt.Sprintf(DecisionPrompt, contextStr, m.Content)
+		decisionMsg := []cerebras.Message{
+			{Role: "system", Content: "You are a decision engine."},
+			{Role: "user", Content: decisionPrompt},
+		}
+		resp, err := h.cerebrasClient.ChatCompletion(decisionMsg)
+		if err == nil && strings.Contains(resp, "[REPLY]") {
+			shouldReply = true
+		}
+	}
 
 	if !shouldReply {
 		// Even if not replying, we might want to add to recent context?
@@ -332,7 +333,28 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// Prepare display name
+	displayName := m.Author.Username
+	if m.Author.GlobalName != "" {
+		displayName = m.Author.GlobalName
+	}
+
 	s.ChannelTyping(m.ChannelID)
+
+	// Check if this is a long task request that should be refused
+	isTask, refusal := h.taskAgent.CheckTask(m.Content)
+	if isTask {
+		h.sendSplitMessage(s, m.ChannelID, refusal, m.Reference())
+
+		// Record the refusal in recent memory
+		h.wg.Add(1)
+		go func() {
+			defer h.wg.Done()
+			h.addRecentMessage(m.Author.ID, fmt.Sprintf("%s: %s", displayName, m.Content))
+			h.addRecentMessage(m.Author.ID, fmt.Sprintf("Nino: %s", refusal))
+		}()
+		return
+	}
 
 	// 1. Generate Embedding for current message
 	// We use the user's message as the query for retrieval
@@ -360,10 +382,6 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	}
 
 	// 4. Prepare Emojis
-	displayName := m.Author.Username
-	if m.Author.GlobalName != "" {
-		displayName = m.Author.GlobalName
-	}
 	var emojiText string
 	if channel != nil && channel.GuildID != "" {
 		emojis, err := s.GuildEmojis(channel.GuildID)
