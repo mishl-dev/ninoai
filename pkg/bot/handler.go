@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"ninoai/pkg/cerebras"
-	"ninoai/pkg/embedding"
 	"ninoai/pkg/memory"
 
 	"github.com/bwmarrin/discordgo"
@@ -42,18 +41,27 @@ func (s *DiscordSession) GuildEmojis(guildID string, options ...discordgo.Reques
 	return s.Session.GuildEmojis(guildID, options...)
 }
 
+type CerebrasClient interface {
+	ChatCompletion(messages []cerebras.Message) (string, error)
+}
+
+type EmbeddingClient interface {
+	Embed(text string) ([]float32, error)
+}
+
 type Handler struct {
-	cerebrasClient  *cerebras.Client
-	embeddingClient *embedding.Client
+	cerebrasClient  CerebrasClient
+	embeddingClient EmbeddingClient
 	memoryStore     memory.Store
 	memoryAgent     *MemoryAgent
 	botID           string
 	emojiCache      map[string][]string // guildID -> filtered emoji names
 	emojiCacheMu    sync.RWMutex
 	emojiCachePath  string // Path to emoji cache file
+	wg              sync.WaitGroup
 }
 
-func NewHandler(c *cerebras.Client, e *embedding.Client, m memory.Store) *Handler {
+func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store) *Handler {
 	h := &Handler{
 		cerebrasClient:  c,
 		embeddingClient: e,
@@ -356,9 +364,11 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	messages := []cerebras.Message{
 		{Role: "system", Content: systemPrompt},
 	}
+	log.Printf("Retrieved memories: %s", retrievedMemories)
 	if retrievedMemories != "" {
 		messages = append(messages, cerebras.Message{Role: "system", Content: retrievedMemories})
 	}
+	log.Printf("Rolling context: %s", rollingContext)
 	if rollingContext != "" {
 		messages = append(messages, cerebras.Message{Role: "system", Content: rollingContext})
 	}
@@ -379,10 +389,12 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	s.ChannelMessageSend(m.ChannelID, reply)
 
 	// 7. Async Updates
+	h.wg.Add(1)
 	go func() {
+		defer h.wg.Done()
 		// Add to Rolling Context (Always)
 		// We add the user message AND the bot reply
-		h.addRecentMessage(m.Author.ID, fmt.Sprintf("User: %s", m.Content))
+		h.addRecentMessage(m.Author.ID, fmt.Sprintf("%s: %s", displayName, m.Content))
 		h.addRecentMessage(m.Author.ID, fmt.Sprintf("Nino: %s", reply))
 
 		// Evaluate for Long-Term Memory
@@ -402,4 +414,8 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 			}
 		}
 	}()
+}
+
+func (h *Handler) WaitForReady() {
+	h.wg.Wait()
 }
