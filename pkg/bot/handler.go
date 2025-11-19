@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"ninoai/pkg/cerebras"
 	"ninoai/pkg/memory"
@@ -54,11 +55,13 @@ type Handler struct {
 	embeddingClient EmbeddingClient
 	memoryStore     memory.Store
 	memoryAgent     *MemoryAgent
-	botID           string
-	emojiCache      map[string][]string // guildID -> filtered emoji names
-	emojiCacheMu    sync.RWMutex
-	emojiCachePath  string // Path to emoji cache file
-	wg              sync.WaitGroup
+	botID            string
+	emojiCache       map[string][]string // guildID -> filtered emoji names
+	emojiCacheMu     sync.RWMutex
+	emojiCachePath   string // Path to emoji cache file
+	wg               sync.WaitGroup
+	lastMessageTimes map[string]time.Time
+	lastMessageMu    sync.RWMutex
 }
 
 func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store) *Handler {
@@ -67,12 +70,16 @@ func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store) *Handler {
 		embeddingClient: e,
 		memoryStore:     m,
 		memoryAgent:     NewMemoryAgent(c),
-		emojiCache:      make(map[string][]string),
-		emojiCachePath:  "storage/emoji_cache.json",
+		emojiCache:       make(map[string][]string),
+		emojiCachePath:   "storage/emoji_cache.json",
+		lastMessageTimes: make(map[string]time.Time),
 	}
 
 	// Load emoji cache from disk
 	h.loadEmojiCache()
+
+	// Start a background goroutine to periodically clear inactive users' recent memory
+	go h.clearInactiveUsers()
 
 	return h
 }
@@ -250,6 +257,9 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// Update last message time for the user to track activity
+	h.updateLastMessageTime(m.Author.ID)
+
 	// Get channel info to check if it's a DM
 	channel, err := s.Channel(m.ChannelID)
 	isDM := err == nil && channel.Type == discordgo.ChannelTypeDM
@@ -260,6 +270,16 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 		if user.ID == h.botID {
 			isMentioned = true
 			break
+		}
+	}
+
+	// If the message is a reply, ignore it unless it's a reply to the bot
+	if m.MessageReference != nil {
+		// To get the message being replied to, you might need to fetch it
+		// For now, let's assume if it's a reply and we are not mentioned, we ignore it.
+		// A more robust solution would be to check if the replied-to message was from the bot.
+		if !isMentioned {
+			return
 		}
 	}
 
@@ -390,11 +410,11 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	reply, err := h.cerebrasClient.ChatCompletion(messages)
 	if err != nil {
 		log.Printf("Error getting completion: %v", err)
-		s.ChannelMessageSend(m.ChannelID, "(I'm having a headache... try again later.)")
+		h.sendSplitMessage(s, m.ChannelID, "(I'm having a headache... try again later.)")
 		return
 	}
 
-	s.ChannelMessageSend(m.ChannelID, reply)
+	h.sendSplitMessage(s, m.ChannelID, reply)
 
 	// 7. Async Updates
 	h.wg.Add(1)
@@ -422,6 +442,52 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 			}
 		}
 	}()
+}
+
+func (h *Handler) sendSplitMessage(s Session, channelID, content string) {
+	// Replace \n\n with a special separator
+	content = strings.ReplaceAll(content, "\n\n", "---SPLIT---")
+	parts := strings.Split(content, "---SPLIT---")
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			_, err := s.ChannelMessageSend(channelID, part)
+			if err != nil {
+				log.Printf("Error sending message part: %v", err)
+			}
+			// Add a short delay between messages for a more natural feel
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
+func (h *Handler) updateLastMessageTime(userID string) {
+	h.lastMessageMu.Lock()
+	defer h.lastMessageMu.Unlock()
+	h.lastMessageTimes[userID] = time.Now()
+}
+
+func (h *Handler) clearInactiveUsers() {
+	// Check for inactive users every minute
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		h.lastMessageMu.Lock()
+		for userID, lastTime := range h.lastMessageTimes {
+			// If user has been inactive for 3 minutes, clear their recent memory
+			if time.Since(lastTime) > 3*time.Minute {
+				log.Printf("User %s has been inactive for 3 minutes, clearing recent memory", userID)
+				if err := h.memoryStore.ClearRecentMessages(userID); err != nil {
+					log.Printf("Error clearing recent messages for inactive user %s: %v", userID, err)
+				}
+				// Remove from tracking map
+				delete(h.lastMessageTimes, userID)
+			}
+		}
+		h.lastMessageMu.Unlock()
+	}
 }
 
 func (h *Handler) WaitForReady() {
