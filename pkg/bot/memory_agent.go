@@ -9,16 +9,20 @@ import (
 )
 
 type MemoryAgent struct {
-	client *cerebras.Client
+	client CerebrasClient
 }
 
-func NewMemoryAgent(client *cerebras.Client) *MemoryAgent {
+func NewMemoryAgent(client CerebrasClient) *MemoryAgent {
 	return &MemoryAgent{
 		client: client,
 	}
 }
 
 func (ma *MemoryAgent) EvaluateMemory(userMsg, botReply string) bool {
+    if strings.Contains(botReply, "[REMEMBER]") {
+        return true
+    }
+
 	prompt := fmt.Sprintf(`Analyze the following interaction between a user and Nino (AI).
 	
 User: "%s"
