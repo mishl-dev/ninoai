@@ -186,7 +186,7 @@ func TestMessageFlow(t *testing.T) {
 			if strings.Contains(userMessage, "Please remember") {
 				return "YES", nil
 			}
-			return "NO", nil
+			return "[NO]", nil
 		}
 
 		if strings.Contains(userMessage, "remember") {

@@ -5,7 +5,7 @@ A Discord bot powered by AI that embodies the personality of Nino Nakano from "T
 [![License: Curse of Knowledge](https://img.shields.io/badge/License-Curse%20of%20Knowledge-red.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.24.5-00ADD8?logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
-[![Test Coverage](https://img.shields.io/badge/Coverage-0%25-red)](coverage.svg)
+![Test Coverage](coverage.svg)
 
 ## ✨ Features
 
