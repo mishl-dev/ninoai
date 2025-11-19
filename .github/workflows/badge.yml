@@ -1,0 +1,38 @@
+name: Update Coverage Badge
+
+on:
+  workflow_run:
+    workflows: ["Go Test"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  update-badge:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: coverage-badge
+          path: .
+
+      - name: Generate coverage badge
+        uses: jscodeshift/gocovsh@v1
+        with:
+          path: coverage.out
+          output: coverage.svg
+
+      - name: Commit and push badge
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add coverage.svg
+          git commit -m "Update test coverage badge [skip ci]"
+          git push
