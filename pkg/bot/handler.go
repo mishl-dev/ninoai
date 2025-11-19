@@ -270,23 +270,30 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	// Get recent context (Rolling Chat Context)
 	recentMsgs := h.getRecentMessages(m.Author.ID)
 
-	if !shouldReply {
-		contextStr := "(No recent context)"
-		if len(recentMsgs) > 0 {
-			contextStr = strings.Join(recentMsgs, "\n")
-		}
 
-		// Use LLM to decide with context
-		decisionPrompt := fmt.Sprintf(DecisionPrompt, contextStr, m.Content)
-		decisionMsg := []cerebras.Message{
-			{Role: "system", Content: "You are a decision engine."},
-			{Role: "user", Content: decisionPrompt},
+	if !shouldReply {
+			contextStr := "(No recent context)"
+			
+			// Logic to use only the recent 2 messages
+			if len(recentMsgs) > 0 {
+				messagesToUse := recentMsgs
+				if len(recentMsgs) > 2 {
+					messagesToUse = recentMsgs[len(recentMsgs)-2:]
+				}
+				contextStr = strings.Join(messagesToUse, "\n")
+			}
+
+			// Use LLM to decide with context
+			decisionPrompt := fmt.Sprintf(DecisionPrompt, contextStr, m.Content)
+			decisionMsg := []cerebras.Message{
+				{Role: "system", Content: "You are a decision engine."},
+				{Role: "user", Content: decisionPrompt},
+			}
+			resp, err := h.cerebrasClient.ChatCompletion(decisionMsg)
+			if err == nil && strings.Contains(resp, "[REPLY]") {
+				shouldReply = true
+			}
 		}
-		resp, err := h.cerebrasClient.ChatCompletion(decisionMsg)
-		if err == nil && strings.Contains(resp, "[REPLY]") {
-			shouldReply = true
-		}
-	}
 
 	if !shouldReply {
 		// Even if not replying, we might want to add to recent context?

@@ -14,10 +14,6 @@
 *.dylib
 ninoai
 
-# Test files
-*_test.go
-*.test
-
 # Storage and data
 storage/
 *.db

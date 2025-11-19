@@ -6,11 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 )
 
 const (
 	apiURL = "https://api.cerebras.ai/v1/chat/completions"
 )
+
+// thinkRegex matches <think>...</think> content, including newlines.
+// (?s) enables the dot (.) to match new lines.
+var thinkRegex = regexp.MustCompile(`(?s)<think>.*?</think>`)
 
 // ModelConfig defines the ID and context limits for the prioritized list.
 type ModelConfig struct {
@@ -18,18 +24,11 @@ type ModelConfig struct {
 	MaxCtx int
 }
 
-// prioritizedModels is sorted by Quality Index (Score) descending:
-// 1. qwen-3-32b (Score: 62)
-// 2. gpt-oss-120b (Score: 61)
-// 3. qwen-3-235b (Score: 57)
-// 4. zai-glm-4.6 (Score: 56)
-// 5. llama-3.3-70b (Score: 41)
-// 6. llama3.1-8b (Score: 17)
 var prioritizedModels = []ModelConfig{
+	{ID: "zai-glm-4.6", MaxCtx: 64000},
 	{ID: "qwen-3-32b", MaxCtx: 65536},
 	{ID: "gpt-oss-120b", MaxCtx: 65536},
 	{ID: "qwen-3-235b-a22b-instruct-2507", MaxCtx: 65536},
-	{ID: "zai-glm-4.6", MaxCtx: 64000},
 	{ID: "llama-3.3-70b", MaxCtx: 65536},
 	{ID: "llama3.1-8b", MaxCtx: 8192},
 }
@@ -71,6 +70,16 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("api status %d: %s", e.StatusCode, e.Body)
 }
 
+// APIError captures non-200 responses to allow inspection of the status code.
+type APIError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("api status %d: %s", e.StatusCode, e.Body)
+}
+
 func NewClient(apiKey string) *Client {
 	return &Client{
 		apiKey: apiKey,
@@ -80,7 +89,20 @@ func NewClient(apiKey string) *Client {
 
 // ChatCompletion attempts to get a response.
 // If the API returns ANY non-2xx status (429, 500, 400, etc.), it cycles to the next model.
+// ChatCompletion attempts to get a response.
+// If the API returns ANY non-2xx status (429, 500, 400, etc.), it cycles to the next model.
 func (c *Client) ChatCompletion(messages []Message) (string, error) {
+	var lastErr error
+
+	for _, modelConf := range prioritizedModels {
+		reqBody := Request{
+			Model:       modelConf.ID,
+			Stream:      false,
+			MaxTokens:   modelConf.MaxCtx, // Uses the specific max context for the current model
+			Temperature: 1.0,
+			TopP:        1,
+			Messages:    messages,
+		}
 	var lastErr error
 
 	for _, modelConf := range prioritizedModels {
@@ -106,7 +128,7 @@ func (c *Client) ChatCompletion(messages []Message) (string, error) {
 		} else {
 			lastErr = fmt.Errorf("model %s network error: %w", modelConf.ID, err)
 		}
-		
+
 		// Continue to the next model in the loop
 	}
 
@@ -131,13 +153,21 @@ func (c *Client) makeRequest(reqBody Request) (string, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to perform request: %w", err)
+		return "", fmt.Errorf("failed to perform request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// If status code is not 2xx (e.g., 200, 201), return an APIError.
 	// This triggers the loop in ChatCompletion to try the next model.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	// If status code is not 2xx (e.g., 200, 201), return an APIError.
+	// This triggers the loop in ChatCompletion to try the next model.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		return "", &APIError{
+			StatusCode: resp.StatusCode,
+			Body:       string(bodyBytes),
+		}
 		return "", &APIError{
 			StatusCode: resp.StatusCode,
 			Body:       string(bodyBytes),
@@ -153,5 +183,13 @@ func (c *Client) makeRequest(reqBody Request) (string, error) {
 		return "", fmt.Errorf("no choices in response")
 	}
 
-	return apiResp.Choices[0].Message.Content, nil
+	content := apiResp.Choices[0].Message.Content
+
+	// Remove <think> tags and their content from the response
+	content = thinkRegex.ReplaceAllString(content, "")
+
+	// Optional: Trim whitespace that might result from removing the tags
+	content = strings.TrimSpace(content)
+
+	return content, nil
 }
