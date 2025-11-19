@@ -88,9 +88,11 @@ func (m *mockMemoryStore) DeleteUserData(userId string) error {
 
 // Mock Discord Session
 type mockDiscordSession struct {
-	ChannelMessageSendFunc func(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
-	ChannelTypingFunc      func(channelID string, options ...discordgo.RequestOption) error
-	UserFunc               func(userID string) (*discordgo.User, error)
+	ChannelMessageSendFunc        func(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelMessageSendReplyFunc   func(channelID string, content string, reference *discordgo.MessageReference, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelMessageSendComplexFunc func(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelTypingFunc             func(channelID string, options ...discordgo.RequestOption) error
+	UserFunc                      func(userID string) (*discordgo.User, error)
 	ChannelFunc            func(channelID string, options ...discordgo.RequestOption) (*discordgo.Channel, error)
 	GuildEmojisFunc        func(guildID string, options ...discordgo.RequestOption) ([]*discordgo.Emoji, error)
 }
@@ -98,6 +100,20 @@ type mockDiscordSession struct {
 func (m *mockDiscordSession) ChannelMessageSend(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error) {
 	if m.ChannelMessageSendFunc != nil {
 		return m.ChannelMessageSendFunc(channelID, content, options...)
+	}
+	return &discordgo.Message{}, nil
+}
+
+func (m *mockDiscordSession) ChannelMessageSendReply(channelID string, content string, reference *discordgo.MessageReference, options ...discordgo.RequestOption) (*discordgo.Message, error) {
+	if m.ChannelMessageSendReplyFunc != nil {
+		return m.ChannelMessageSendReplyFunc(channelID, content, reference, options...)
+	}
+	return &discordgo.Message{}, nil
+}
+
+func (m *mockDiscordSession) ChannelMessageSendComplex(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error) {
+	if m.ChannelMessageSendComplexFunc != nil {
+		return m.ChannelMessageSendComplexFunc(channelID, data, options...)
 	}
 	return &discordgo.Message{}, nil
 }
@@ -211,6 +227,14 @@ func TestMessageFlow(t *testing.T) {
 	}
 
 	mockSession.ChannelMessageSendFunc = func(channelID, content string, options ...discordgo.RequestOption) (*discordgo.Message, error) {
+		return &discordgo.Message{}, nil
+	}
+
+	mockSession.ChannelMessageSendReplyFunc = func(channelID, content string, reference *discordgo.MessageReference, options ...discordgo.RequestOption) (*discordgo.Message, error) {
+		return &discordgo.Message{}, nil
+	}
+
+	mockSession.ChannelMessageSendComplexFunc = func(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error) {
 		return &discordgo.Message{}, nil
 	}
 
