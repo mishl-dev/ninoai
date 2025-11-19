@@ -86,7 +86,7 @@ func (c *Client) ChatCompletion(messages []Message) (string, error) {
 		reqBody := Request{
 			Model:       modelConf.ID,
 			Stream:      false,
-			MaxTokens:   2000,
+			MaxTokens:   500,
 			Temperature: 1.0,
 			TopP:        1,
 			Messages:    messages,
