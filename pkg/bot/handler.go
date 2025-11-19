@@ -19,6 +19,8 @@ import (
 // Session interface abstracts discordgo.Session for testing
 type Session interface {
 	ChannelMessageSend(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelMessageSendReply(channelID string, content string, reference *discordgo.MessageReference, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelMessageSendComplex(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error)
 	ChannelTyping(channelID string, options ...discordgo.RequestOption) (err error)
 	User(userID string) (*discordgo.User, error)
 	Channel(channelID string, options ...discordgo.RequestOption) (*discordgo.Channel, error)
@@ -410,11 +412,11 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	reply, err := h.cerebrasClient.ChatCompletion(messages)
 	if err != nil {
 		log.Printf("Error getting completion: %v", err)
-		h.sendSplitMessage(s, m.ChannelID, "(I'm having a headache... try again later.)")
+		h.sendSplitMessage(s, m.ChannelID, "(I'm having a headache... try again later.)", m.Reference())
 		return
 	}
 
-	h.sendSplitMessage(s, m.ChannelID, reply)
+	h.sendSplitMessage(s, m.ChannelID, reply, m.Reference())
 
 	// 7. Async Updates
 	h.wg.Add(1)
@@ -444,21 +446,45 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	}()
 }
 
-func (h *Handler) sendSplitMessage(s Session, channelID, content string) {
-	// Replace \n\n with a special separator
+func (h *Handler) sendSplitMessage(s Session, channelID, content string, reference *discordgo.MessageReference) {
+	// Replace \n\n with a special separator for multi-part messages
 	content = strings.ReplaceAll(content, "\n\n", "---SPLIT---")
 	parts := strings.Split(content, "---SPLIT---")
 
+	isFirstPart := true
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if part != "" {
-			_, err := s.ChannelMessageSend(channelID, part)
-			if err != nil {
-				log.Printf("Error sending message part: %v", err)
-			}
-			// Add a short delay between messages for a more natural feel
-			time.Sleep(1 * time.Second)
+		if part == "" {
+			continue
 		}
+
+		var err error
+		if reference == nil {
+			// If there's no reference, send a normal message
+			_, err = s.ChannelMessageSend(channelID, part)
+		} else {
+			if isFirstPart {
+				// The first part of a reply pings the user by default
+				_, err = s.ChannelMessageSendReply(channelID, part, reference)
+				isFirstPart = false
+			} else {
+				// Subsequent parts are sent as replies without pinging the user
+				_, err = s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+					Content:   part,
+					Reference: reference,
+					AllowedMentions: &discordgo.MessageAllowedMentions{
+						RepliedUser: false, // This prevents pinging on subsequent parts
+					},
+				})
+			}
+		}
+
+		if err != nil {
+			log.Printf("Error sending message part: %v", err)
+		}
+
+		// Add a short delay between messages for a more natural feel
+		time.Sleep(1 * time.Second)
 	}
 }
 

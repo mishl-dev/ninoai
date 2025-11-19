@@ -29,6 +29,24 @@ func (m *MockSession) ChannelMessageSend(channelID string, content string, optio
 	}, nil
 }
 
+func (m *MockSession) ChannelMessageSendReply(channelID string, content string, reference *discordgo.MessageReference, options ...discordgo.RequestOption) (*discordgo.Message, error) {
+	m.SentMessages = append(m.SentMessages, content)
+	return &discordgo.Message{
+		ID:        "mock_msg_id",
+		ChannelID: channelID,
+		Content:   content,
+	}, nil
+}
+
+func (m *MockSession) ChannelMessageSendComplex(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error) {
+	m.SentMessages = append(m.SentMessages, data.Content)
+	return &discordgo.Message{
+		ID:        "mock_msg_id",
+		ChannelID: channelID,
+		Content:   data.Content,
+	}, nil
+}
+
 func (m *MockSession) ChannelTyping(channelID string, options ...discordgo.RequestOption) error {
 	m.TypingCalls++
 	return nil
