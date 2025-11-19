@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
 
 	"github.com/surrealdb/surrealdb.go"
 )
@@ -60,22 +61,22 @@ func (c *Client) Select(thing string) (interface{}, error) {
 	return result, nil
 }
 
-// VectorSearch performs a cosine similarity search on the specified table and vector field.
-// It encapsulates the raw query construction to keep business logic clean.
+// VectorSearch performs a cosine similarity search
 func (c *Client) VectorSearch(table string, vectorField string, queryVector []float32, limit int, filter map[string]interface{}) ([]interface{}, error) {
-	// Use SurrealDB's k-NN vector search syntax: <|limit,COSINE|>
-	// This is the correct syntax according to SurrealDB documentation
-	query := fmt.Sprintf("SELECT *, vector::distance::cosine(%s, $query_vector) AS distance FROM %s WHERE %s ORDER BY %s <|%d,COSINE|> $query_vector;",
-		vectorField, table, buildWhereClause(filter), vectorField, limit)
+	query := fmt.Sprintf(`
+		SELECT *, vector::similarity::cosine(%s, $query_vector) AS similarity 
+		FROM %s 
+		WHERE %s 
+		ORDER BY similarity DESC 
+		LIMIT %d;
+	`, vectorField, table, buildWhereClause(filter), limit)
 
 	log.Printf("[DEBUG] VectorSearch query: %s", query)
-	log.Printf("[DEBUG] Query vector length: %d, limit: %d", len(queryVector), limit)
 
 	vars := map[string]interface{}{
 		"query_vector": queryVector,
 	}
 
-	// Add filter variables
 	for k, v := range filter {
 		vars[k] = v
 	}
@@ -86,29 +87,31 @@ func (c *Client) VectorSearch(table string, vectorField string, queryVector []fl
 		return nil, err
 	}
 
-	// Parse the result (array of results for each statement)
-	resSlice, ok := result.([]interface{})
-	if !ok || len(resSlice) == 0 {
-		log.Printf("[DEBUG] No results or invalid format")
-		return nil, nil
+	log.Printf("[DEBUG] Raw result type: %T", result)
+
+	// Use reflection to extract the Result field from QueryResult struct
+	var rows []interface{}
+
+	rv := reflect.ValueOf(result)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
 	}
 
-	// The first element is the result of our query
-	queryRes := resSlice[0]
+	if rv.Kind() == reflect.Slice && rv.Len() > 0 {
+		firstElem := rv.Index(0)
 
-	// Handle different response formats
-	var rows []interface{}
-	if resMap, ok := queryRes.(map[string]interface{}); ok {
-		if val, ok := resMap["result"]; ok {
-			if r, ok := val.([]interface{}); ok {
-				rows = r
+		if firstElem.Kind() == reflect.Struct {
+			resultField := firstElem.FieldByName("Result")
+			if resultField.IsValid() && resultField.CanInterface() {
+				if r, ok := resultField.Interface().([]interface{}); ok {
+					rows = r
+					log.Printf("[DEBUG] Successfully extracted %d rows via reflection", len(rows))
+				}
 			}
 		}
-	} else if r, ok := queryRes.([]interface{}); ok {
-		rows = r
 	}
 
-	log.Printf("[DEBUG] VectorSearch returned %d rows", len(rows))
+	log.Printf("[DEBUG] VectorSearch returning %d rows", len(rows))
 	return rows, nil
 }
 

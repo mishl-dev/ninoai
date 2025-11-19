@@ -88,8 +88,8 @@ func (s *SurrealStore) Search(userId string, queryVector []float32, limit int) (
 	for _, row := range rows {
 		if rowMap, ok := row.(map[string]interface{}); ok {
 			if text, ok := rowMap["text"].(string); ok {
-				distance := rowMap["distance"]
-				log.Printf("Memory match: '%s' (distance: %v)", text, distance)
+				similarity := rowMap["similarity"]
+				log.Printf("Memory match: '%s' (similarity: %v)", text, similarity)
 				texts = append(texts, text)
 			}
 		}
