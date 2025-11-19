@@ -185,10 +185,8 @@ func (c *Client) makeRequest(reqBody Request) (string, error) {
 
 	content := apiResp.Choices[0].Message.Content
 
-	// Remove <think> tags and their content from the response
 	content = thinkRegex.ReplaceAllString(content, "")
 
-	// Optional: Trim whitespace that might result from removing the tags
 	content = strings.TrimSpace(content)
 
 	return content, nil
