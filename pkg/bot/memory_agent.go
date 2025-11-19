@@ -1,23 +1,3 @@
-package bot
-
-import (
-	"fmt"
-	"log"
-	"strings"
-
-	"ninoai/pkg/cerebras"
-)
-
-type MemoryAgent struct {
-	client CerebrasClient
-}
-
-func NewMemoryAgent(client CerebrasClient) *MemoryAgent {
-	return &MemoryAgent{
-		client: client,
-	}
-}
-
 func (ma *MemoryAgent) EvaluateMemory(userMsg, botReply string) (bool, string) {
 	if strings.Contains(botReply, "[REMEMBER]") {
 		return true, userMsg
@@ -37,6 +17,8 @@ Examples:
 - User: "I love spicy food." -> "User loves spicy food."
 - User: "Hi" -> "[NO]"
 - User: "What is the weather?" -> "[NO]"
+- User: "I like ramen." -> "User's favorite food is ramen."
+- User: "What is my favorite food?" -> "[NO]"
 `, userMsg)
 
 	messages := []cerebras.Message{
@@ -51,8 +33,11 @@ Examples:
 	}
 
 	cleaned := strings.TrimSpace(resp)
-	if strings.ToUpper(cleaned) == "NO" || strings.Contains(strings.ToUpper(cleaned), "NO.") {
+	cleanedUpper := strings.ToUpper(cleaned)
+	
+	if cleanedUpper == "[NO]" || strings.HasPrefix(cleanedUpper, "[NO]") {
 		return false, ""
 	}
+	
 	return true, cleaned
 }
