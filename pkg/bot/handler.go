@@ -259,6 +259,12 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// Ignore long messages
+	if len(m.Content) > 280 {
+		s.ChannelMessageSendReply(m.ChannelID, "...", m.Reference())
+		return
+	}
+
 	// Update last message time for the user to track activity
 	h.updateLastMessageTime(m.Author.ID)
 
@@ -373,7 +379,7 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 				var emojiList []string
 				for _, name := range relevantNames {
 					if emoji, ok := nameToEmoji[name]; ok {
-						emojiList = append(emojiList, fmt.Sprintf(":%s: (<:%s:%s>)", emoji.Name, emoji.Name, emoji.ID))
+						emojiList = append(emojiList, fmt.Sprintf("<:%s:%s>", emoji.Name, emoji.ID))
 					}
 				}
 
