@@ -1,9 +1,12 @@
 name: Auto Release & Build
 
 on:
+  # 1. Runs automatically on push to main
   push:
     branches:
-      - main # Change this if your branch is 'master'
+      - main
+  # 2. Adds the "Run workflow" button in Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,29 +19,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
+          fetch-depth: '0' # Essential for version history calculation
 
-      # 1. Generate Version Tag
+      # --- 1. Versioning ---
       - name: Generate Next Version
         id: tag_version
-        uses: anothrNick/github-tag-action@1.70.0 # Updated to latest stable for 2025
+        uses: anothrNick/github-tag-action@1.70.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
           DEFAULT_BUMP: patch
 
-      # 2. Setup Go (Now using 1.24)
+      # --- 2. Build Binary (Go 1.24) ---
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24' # Matches your go.mod
+          go-version: '1.24'
 
       - name: Build Binary
         run: |
           go mod download
           CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o ninoai ./main.go
 
-      # 3. Docker Build & Push
+      # --- 3. Build & Push Docker ---
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -58,14 +61,13 @@ jobs:
         with:
           context: .
           push: true
-          # This builds for the release tag AND 'latest'
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}:latest
             ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.tag_version.outputs.new_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 4. Create Release with Binary
+      # --- 4. GitHub Release ---
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
