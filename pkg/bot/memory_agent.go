@@ -55,8 +55,8 @@ Examples:
 	cleaned := strings.TrimSpace(resp)
 	cleanedUpper := strings.ToUpper(cleaned)
 	
-	// Check if response is exactly [NO] or starts with [NO]
-	if cleanedUpper == "[NO]" || strings.HasPrefix(cleanedUpper, "[NO]") {
+	// Check if response is exactly [NO] or contains [NO]
+	if cleanedUpper == "[NO]" || strings.Contains(cleanedUpper, "[NO]") {
 		return false, ""
 	}
 	
