@@ -34,7 +34,7 @@ NinoAI uses a sophisticated memory flow:
 - **SurrealDB** instance ([local or hosted](https://surrealdb.com/install))
 - **Discord Bot Token** ([Create one here](https://discord.com/developers/applications))
 - **Cerebras API Key** ([Get one here](https://cerebras.ai/))
-- **Embedding API ([mishl-dev/text-embed-api](https://github.com/mishl-dev/text-embed-api)) ** ([hosted](https://github.com/mishl-dev/text-embed-api/))
+- **Embedding API ([mishl-dev/text-embed-api](https://github.com/mishl-dev/text-embed-api))** ([hosted](https://github.com/mishl-dev/text-embed-api/))
 
 ## 🚀 Quick Start
 
