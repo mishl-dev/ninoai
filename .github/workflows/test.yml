@@ -28,8 +28,3 @@ jobs:
           SURREAL_DB_PASS: ${{ secrets.SURREAL_DB_PASS }}
         run: go test -v -coverprofile=coverage.out ./...
 
-      - name: Generate test coverage badge
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-badge
-          path: coverage.out
