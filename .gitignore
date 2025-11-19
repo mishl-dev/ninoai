@@ -1,5 +1,42 @@
-ninoai.exe
-ninoai
-storage/*
+# Git files
+.git
+.gitignore
+
+# Environment files
 .env
-supersecretsubmodules/*
+*.env
+!example.env
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+ninoai
+
+# Test files
+*_test.go
+*.test
+
+# Storage and data
+storage/
+*.db
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.github/
+
+# OS files
+.DS_Store
+Thumbs.db
