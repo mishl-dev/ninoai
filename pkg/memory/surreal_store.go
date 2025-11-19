@@ -2,6 +2,7 @@ package memory
 
 import (
 	"fmt"
+	"log"
 	"ninoai/pkg/surreal"
 	"time"
 )
@@ -14,7 +15,7 @@ type SurrealMemoryItem struct {
 	ID        string    `json:"id,omitempty"`
 	UserID    string    `json:"user_id"`
 	Text      string    `json:"text"`
-	Vector    []float32 `json:"vector"`
+	Embedding []float32 `json:"vector"`
 	Timestamp int64     `json:"timestamp"`
 }
 
@@ -26,16 +27,43 @@ type RecentMessageItem struct {
 }
 
 func NewSurrealStore(client *surreal.Client) *SurrealStore {
-	return &SurrealStore{
+	store := &SurrealStore{
 		client: client,
 	}
+	if err := store.Init(); err != nil {
+		// Log error but don't fail startup, as DB might be reachable later or schema exists
+		// In production, you might want to handle this more strictly
+		fmt.Printf("Warning: Failed to initialize SurrealDB schema: %v\n", err)
+	}
+	return store
+}
+
+func (s *SurrealStore) Init() error {
+	// Define schema for memories
+	// We use a transaction-like block or just sequential queries
+	query := `
+		DEFINE TABLE IF NOT EXISTS memories SCHEMAFULL;
+		DEFINE FIELD IF NOT EXISTS user_id ON memories TYPE string;
+		DEFINE FIELD IF NOT EXISTS text ON memories TYPE string;
+		DEFINE FIELD IF NOT EXISTS timestamp ON memories TYPE int;
+		-- We define the vector field with 768 dimensions
+		DEFINE FIELD IF NOT EXISTS vector ON memories TYPE array<float> ASSERT array::len($value) == 768;
+		DEFINE INDEX IF NOT EXISTS vector_idx ON memories FIELDS vector MTREE DIMENSION 768 DIST COSINE;
+
+		DEFINE TABLE IF NOT EXISTS recent_messages SCHEMAFULL;
+		DEFINE FIELD IF NOT EXISTS user_id ON recent_messages TYPE string;
+		DEFINE FIELD IF NOT EXISTS text ON recent_messages TYPE string;
+		DEFINE FIELD IF NOT EXISTS timestamp ON recent_messages TYPE int;
+	`
+	_, err := s.client.Query(query, map[string]interface{}{})
+	return err
 }
 
 func (s *SurrealStore) Add(userId string, text string, vector []float32) error {
 	item := SurrealMemoryItem{
 		UserID:    userId,
 		Text:      text,
-		Vector:    vector,
+		Embedding: vector,
 		Timestamp: time.Now().Unix(),
 	}
 
@@ -44,51 +72,24 @@ func (s *SurrealStore) Add(userId string, text string, vector []float32) error {
 }
 
 func (s *SurrealStore) Search(userId string, queryVector []float32, limit int) ([]string, error) {
-	// Vector search query
-	// Include 'vector' in SELECT since we're ordering by it
-	query := `
-		SELECT text, vector FROM memories
-		WHERE user_id = $user_id
-		ORDER BY vector <|` + fmt.Sprintf("%d", limit) + `|> $query_vector;
-	`
+	log.Printf("[DEBUG] Search called: userId=%s, vectorLen=%d, limit=%d", userId, len(queryVector), limit)
 
-	vars := map[string]interface{}{
-		"user_id":      userId,
-		"query_vector": queryVector,
-	}
-
-	result, err := s.client.Query(query, vars)
+	// Use the client's VectorSearch method to avoid raw queries in the store
+	rows, err := s.client.VectorSearch("memories", "vector", queryVector, limit, map[string]interface{}{
+		"user_id": userId,
+	})
 	if err != nil {
+		log.Printf("[DEBUG] VectorSearch error: %v", err)
 		return nil, err
 	}
 
-	// Parse result
-	// SurrealDB returns an array of results, one for each query statement.
-	// We executed one statement.
-	resSlice, ok := result.([]interface{})
-	if !ok || len(resSlice) == 0 {
-		return []string{}, nil
-	}
-
-	// The first element is the result of our query
-	queryRes := resSlice[0]
-
-	// Handle different response formats (status/result object or direct array)
-	var rows []interface{}
-	if resMap, ok := queryRes.(map[string]interface{}); ok {
-		if val, ok := resMap["result"]; ok {
-			if r, ok := val.([]interface{}); ok {
-				rows = r
-			}
-		}
-	} else if r, ok := queryRes.([]interface{}); ok {
-		rows = r
-	}
-
+	log.Printf("[DEBUG] VectorSearch returned %d rows", len(rows))
 	var texts []string
 	for _, row := range rows {
 		if rowMap, ok := row.(map[string]interface{}); ok {
 			if text, ok := rowMap["text"].(string); ok {
+				distance := rowMap["distance"]
+				log.Printf("Memory match: '%s' (distance: %v)", text, distance)
 				texts = append(texts, text)
 			}
 		}

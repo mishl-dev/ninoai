@@ -18,10 +18,10 @@ func NewMemoryAgent(client CerebrasClient) *MemoryAgent {
 	}
 }
 
-func (ma *MemoryAgent) EvaluateMemory(userMsg, botReply string) bool {
-    if strings.Contains(botReply, "[REMEMBER]") {
-        return true
-    }
+func (ma *MemoryAgent) EvaluateMemory(userMsg, botReply string) (bool, string) {
+	if strings.Contains(botReply, "[REMEMBER]") {
+		return true, userMsg
+	}
 
 	prompt := fmt.Sprintf(`Analyze the following interaction between a user and Nino (AI).
 	
@@ -29,31 +29,31 @@ User: "%s"
 Nino: "%s"
 
 Does this interaction contain important facts, preferences, specific events, or relationship developments that should be remembered long-term?
-Examples of YES:
-- User mentions their name, age, location, or job.
-- User states a strong preference (likes/dislikes).
-- A significant event happens (confession, argument, agreement).
-- Nino learns something new about the user.
 
-Examples of NO:
-- Small talk (greetings, "how are you").
-- Random jokes or memes without context.
-- Short, meaningless exchanges.
-- Repetitive information.
+If YES, extract the core fact or information to be stored in a concise, standalone sentence (e.g., "User's favorite food is ramen", "User is a software engineer").
+If NO, reply with exactly "NO".
 
-Reply with exactly "YES" or "NO".`, userMsg, botReply)
+Examples:
+- User: "My name is John." -> "User's name is John."
+- User: "I love spicy food." -> "User loves spicy food."
+- User: "Hi" -> "NO"
+- User: "What is the weather?" -> "NO"
+`, userMsg, botReply)
 
 	messages := []cerebras.Message{
-		{Role: "system", Content: "You are a memory manager for an AI."},
+		{Role: "system", Content: "You are a memory manager for an AI. Extract key facts."},
 		{Role: "user", Content: prompt},
 	}
 
 	resp, err := ma.client.ChatCompletion(messages)
 	if err != nil {
 		log.Printf("Error evaluating memory: %v", err)
-		return false
+		return false, ""
 	}
 
-	cleaned := strings.TrimSpace(strings.ToUpper(resp))
-	return strings.Contains(cleaned, "YES")
+	cleaned := strings.TrimSpace(resp)
+	if strings.ToUpper(cleaned) == "NO" || strings.Contains(strings.ToUpper(cleaned), "NO.") {
+		return false, ""
+	}
+	return true, cleaned
 }

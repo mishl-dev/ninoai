@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bwmarrin/discordgo"
 	"ninoai/pkg/cerebras"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 // Mock Cerebras Client
@@ -35,12 +36,12 @@ func (m *mockEmbeddingClient) Embed(text string) ([]float32, error) {
 
 // Mock Memory Store
 type mockMemoryStore struct {
-	AddFunc               func(userId string, text string, vector []float32) error
-	SearchFunc            func(userId string, queryVector []float32, limit int) ([]string, error)
-	AddRecentMessageFunc  func(userId, message string) error
-	GetRecentMessagesFunc func(userId string) ([]string, error)
+	AddFunc                 func(userId string, text string, vector []float32) error
+	SearchFunc              func(userId string, queryVector []float32, limit int) ([]string, error)
+	AddRecentMessageFunc    func(userId, message string) error
+	GetRecentMessagesFunc   func(userId string) ([]string, error)
 	ClearRecentMessagesFunc func(userId string) error
-	DeleteUserDataFunc    func(userId string) error
+	DeleteUserDataFunc      func(userId string) error
 }
 
 func (m *mockMemoryStore) Add(userId string, text string, vector []float32) error {
@@ -177,10 +178,12 @@ func TestMessageFlow(t *testing.T) {
 				isMemoryEvaluation = true
 			}
 		}
-		finalPrompt = promptBuilder.String()
+		if !isMemoryEvaluation {
+			finalPrompt = promptBuilder.String()
+		}
 
 		if isMemoryEvaluation {
-			if strings.Contains(userMessage, "remember") {
+			if strings.Contains(userMessage, "Please remember") {
 				return "YES", nil
 			}
 			return "NO", nil

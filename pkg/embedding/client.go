@@ -23,8 +23,8 @@ func NewClient(apiKey, apiURL string) *Client {
 }
 
 func (c *Client) Embed(text string) ([]float32, error) {
-	reqBody := map[string][]string{
-		"texts": {text},
+	reqBody := map[string]interface{}{
+		"texts": []string{text},
 	}
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {

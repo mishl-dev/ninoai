@@ -4,15 +4,14 @@ go 1.24.5
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
-	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
+	github.com/surrealdb/surrealdb.go v1.0.0
 )
 
 require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
-	github.com/surrealdb/surrealdb.go v1.0.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect

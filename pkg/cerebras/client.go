@@ -10,7 +10,7 @@ import (
 
 const (
 	apiURL = "https://api.cerebras.ai/v1/chat/completions"
-	model  = "zai-glm-4.6"
+	model  = "qwen-3-235b-a22b-instruct-2507"
 )
 
 type Client struct {

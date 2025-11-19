@@ -300,6 +300,7 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	s.ChannelTyping(m.ChannelID)
 
 	// 1. Generate Embedding for current message
+	// We use the user's message as the query for retrieval
 	emb, err := h.embeddingClient.Embed(m.Content)
 	if err != nil {
 		log.Printf("Error generating embedding: %v", err)
@@ -398,19 +399,19 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 		h.addRecentMessage(m.Author.ID, fmt.Sprintf("Nino: %s", reply))
 
 		// Evaluate for Long-Term Memory
-		if h.memoryAgent.EvaluateMemory(m.Content, reply) {
-			// If worth remembering, we store the interaction
-			// We use the embedding of the USER message for indexing,
-			// but we store the full interaction (or just the fact).
-			// Let's store the interaction.
-			fullInteraction := fmt.Sprintf("User: %s | Nino: %s", m.Content, reply)
+		shouldRemember, fact := h.memoryAgent.EvaluateMemory(m.Content, reply)
+		if shouldRemember {
+			// If worth remembering, we store the extracted fact.
+			// We use the embedding of the FACT for indexing, which is much cleaner than the full interaction.
 
 			// We can re-use the embedding of the user message if it represents the topic well,
 			// or embed the full interaction. Embedding the full interaction is usually better for retrieval context.
-			fullEmb, err := h.embeddingClient.Embed(fullInteraction)
+			factEmb, err := h.embeddingClient.Embed(fact)
 			if err == nil {
-				log.Printf("Storing new memory for user %s", m.Author.ID)
-				h.memoryStore.Add(m.Author.ID, fullInteraction, fullEmb)
+				log.Printf("Storing new memory for user %s: %s", m.Author.ID, fact)
+				if err := h.memoryStore.Add(m.Author.ID, fact, factEmb); err != nil {
+					log.Printf("Error storing memory: %v", err)
+				}
 			}
 		}
 	}()
