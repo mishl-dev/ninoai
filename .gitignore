@@ -1,3 +1,4 @@
 ninoai.exe
 ninoai
-    storage/*
+storage/*
+.env
