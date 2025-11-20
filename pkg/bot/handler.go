@@ -53,30 +53,32 @@ type EmbeddingClient interface {
 }
 
 type Handler struct {
-	cerebrasClient   CerebrasClient
-	embeddingClient  EmbeddingClient
-	memoryStore      memory.Store
-	memoryAgent      *MemoryAgent
-	taskAgent        *TaskAgent
-	botID            string
-	emojiCache       map[string][]string // guildID -> filtered emoji names
-	emojiCacheMu     sync.RWMutex
-	emojiCachePath   string // Path to emoji cache file
-	wg               sync.WaitGroup
-	lastMessageTimes map[string]time.Time
-	lastMessageMu    sync.RWMutex
+	cerebrasClient         CerebrasClient
+	embeddingClient        EmbeddingClient
+	memoryStore            memory.Store
+	memoryAgent            *MemoryAgent
+	taskAgent              *TaskAgent
+	botID                  string
+	emojiCache             map[string][]string // guildID -> filtered emoji names
+	emojiCacheMu           sync.RWMutex
+	emojiCachePath         string // Path to emoji cache file
+	wg                     sync.WaitGroup
+	lastMessageTimes       map[string]time.Time
+	lastMessageMu          sync.RWMutex
+	messageProcessingDelay time.Duration
 }
 
-func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store) *Handler {
+func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store, messageProcessingDelay float64) *Handler {
 	h := &Handler{
-		cerebrasClient:   c,
-		embeddingClient:  e,
-		memoryStore:      m,
-		memoryAgent:      NewMemoryAgent(c),
-		taskAgent:        NewTaskAgent(c),
-		emojiCache:       make(map[string][]string),
-		emojiCachePath:   "storage/emoji_cache.json",
-		lastMessageTimes: make(map[string]time.Time),
+		cerebrasClient:         c,
+		embeddingClient:        e,
+		memoryStore:            m,
+		memoryAgent:            NewMemoryAgent(c),
+		taskAgent:              NewTaskAgent(c),
+		emojiCache:             make(map[string][]string),
+		emojiCachePath:         "storage/emoji_cache.json",
+		lastMessageTimes:       make(map[string]time.Time),
+		messageProcessingDelay: time.Duration(messageProcessingDelay * float64(time.Second)),
 	}
 
 	// Load emoji cache from disk
@@ -508,7 +510,7 @@ func (h *Handler) sendSplitMessage(s Session, channelID, content string, referen
 		}
 
 		// Add a short delay between messages for a more natural feel
-		time.Sleep(1 * time.Second)
+		time.Sleep(h.messageProcessingDelay)
 	}
 }
 
