@@ -4,6 +4,7 @@ import (
 	"log"
 	"ninoai/pkg/bot"
 	"ninoai/pkg/cerebras"
+	"ninoai/pkg/config"
 	"ninoai/pkg/embedding"
 	"ninoai/pkg/memory"
 	"ninoai/pkg/surreal"
@@ -17,7 +18,13 @@ import (
 )
 
 func main() {
-	// Load .env
+	// Load config.yml
+	cfg, err := config.LoadConfig("config.yml")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Load .env for secrets
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, relying on environment variables")
 	}
@@ -25,18 +32,14 @@ func main() {
 	token := os.Getenv("DISCORD_TOKEN")
 	cerebrasKey := os.Getenv("CEREBRAS_API_KEY")
 	embeddingKey := os.Getenv("EMBEDDING_API_KEY")
-	embeddingURL := os.Getenv("EMBEDDING_API_URL")
-	if embeddingURL == "" {
-		embeddingURL = "https://vector.mishl.dev/embed"
-	}
 
 	if token == "" || cerebrasKey == "" || embeddingKey == "" {
 		log.Fatal("Missing required environment variables (DISCORD_TOKEN, CEREBRAS_API_KEY, EMBEDDING_API_KEY)")
 	}
 
 	// Initialize Clients
-	cerebrasClient := cerebras.NewClient(cerebrasKey)
-	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
+	cerebrasClient := cerebras.NewClient(cerebrasKey, cfg.ModelSettings.Temperature, cfg.ModelSettings.TopP)
+	embeddingClient := embedding.NewClient(embeddingKey, cfg.EmbeddingAPIURL)
 
 	// Initialize Memory Store (SurrealDB)
 	surrealHost := os.Getenv("SURREAL_DB_HOST")
@@ -62,7 +65,7 @@ func main() {
 	memoryStore := memory.NewSurrealStore(surrealClient)
 
 	// Initialize Bot Handler
-	handler := bot.NewHandler(cerebrasClient, embeddingClient, memoryStore)
+	handler := bot.NewHandler(cerebrasClient, embeddingClient, memoryStore, cfg.Delays.MessageProcessing)
 
 	// Create Discord Session
 	dg, err := discordgo.New("Bot " + token)

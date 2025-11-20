@@ -1,0 +1,6 @@
+embedding_api_url: "https://vector.mishl.dev/embed"
+model_settings:
+  temperature: 0.7
+  top_p: 0.9
+delays:
+  message_processing: 1.5

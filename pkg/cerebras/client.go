@@ -35,8 +35,10 @@ var PrioritizedModels = []ModelConfig{
 }
 
 type Client struct {
-	apiKey string
-	client *http.Client
+	apiKey      string
+	client      *http.Client
+	temperature float64
+	topP        float64
 }
 
 type Message struct {
@@ -71,10 +73,12 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("api status %d: %s", e.StatusCode, e.Body)
 }
 
-func NewClient(apiKey string) *Client {
+func NewClient(apiKey string, temperature, topP float64) *Client {
 	return &Client{
-		apiKey: apiKey,
-		client: &http.Client{},
+		apiKey:      apiKey,
+		client:      &http.Client{},
+		temperature: temperature,
+		topP:        topP,
 	}
 }
 
@@ -89,8 +93,8 @@ func (c *Client) ChatCompletion(messages []Message) (string, error) {
 			Model:       modelConf.ID,
 			Stream:      false,
 			MaxTokens:   2000,
-			Temperature: 1.0,
-			TopP:        1,
+			Temperature: c.temperature,
+			TopP:        c.topP,
 			Messages:    messages,
 		}
 
