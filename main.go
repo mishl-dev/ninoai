@@ -37,9 +37,13 @@ func main() {
 		log.Fatal("Missing required environment variables (DISCORD_TOKEN, CEREBRAS_API_KEY, EMBEDDING_API_KEY)")
 	}
 
+	embeddingURL := os.Getenv("EMBEDDING_API_URL")
+	if embeddingURL == "" {
+		embeddingURL = "https://vector.mishl.dev/embed"
+	}
 	// Initialize Clients
 	cerebrasClient := cerebras.NewClient(cerebrasKey, cfg.ModelSettings.Temperature, cfg.ModelSettings.TopP)
-	embeddingClient := embedding.NewClient(embeddingKey, cfg.EmbeddingAPIURL)
+	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
 
 	// Initialize Memory Store (SurrealDB)
 	surrealHost := os.Getenv("SURREAL_DB_HOST")

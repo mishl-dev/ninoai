@@ -6,7 +6,6 @@ import (
 )
 
 type Config struct {
-	EmbeddingAPIURL string `yaml:"embedding_api_url"`
 	ModelSettings   struct {
 		Temperature float64 `yaml:"temperature"`
 		TopP        float64 `yaml:"top_p"`
