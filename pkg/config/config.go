@@ -18,6 +18,15 @@ type Config struct {
 func LoadConfig(path string) (*Config, error) {
 	config := &Config{}
 
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		// Set default values
+		config.ModelSettings.Temperature = 0.9
+		config.ModelSettings.TopP = 0.9
+		config.Delays.MessageProcessing = 0.5
+		return config, nil
+	}
+
 	file, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
