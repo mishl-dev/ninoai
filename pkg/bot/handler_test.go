@@ -92,7 +92,7 @@ func TestHandler_Flow(t *testing.T) {
 		t.Skip("Skipping flow test: Missing API keys")
 	}
 
-	cerebrasClient := cerebras.NewClient(cerebrasKey)
+	cerebrasClient := cerebras.NewClient(cerebrasKey, 0.7, 0.9)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
 
 	// Override prioritized models for testing to avoid excessive retries
@@ -116,7 +116,7 @@ func TestHandler_Flow(t *testing.T) {
 	}
 
 	// Initialize Handler
-	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore)
+	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore, 0)
 	botID := "mock_bot_id"
 	handler.SetBotID(botID)
 
@@ -201,7 +201,7 @@ func TestHandler_FlowStructure(t *testing.T) {
 		t.Skip("Skipping structure test: Missing API keys")
 	}
 
-	cerebrasClient := cerebras.NewClient(cerebrasKey)
+	cerebrasClient := cerebras.NewClient(cerebrasKey, 0.7, 0.9)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
 
 	// Override prioritized models for testing
@@ -229,7 +229,7 @@ func TestHandler_FlowStructure(t *testing.T) {
 	memoryStore.AddRecentMessage("test_user_structure", "User: How was your day?")
 	memoryStore.AddRecentMessage("test_user_structure", "Nino: It was fine, I guess.")
 
-	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore)
+	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore, 0)
 	botID := "mock_bot_id"
 	handler.SetBotID(botID)
 
@@ -317,7 +317,7 @@ func TestHandler_DMBehavior(t *testing.T) {
 		t.Skip("Skipping DM behavior test: Missing API keys")
 	}
 
-	cerebrasClient := cerebras.NewClient(cerebrasKey)
+	cerebrasClient := cerebras.NewClient(cerebrasKey, 0.7, 0.9)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
 
 	// Override prioritized models for testing
@@ -332,7 +332,7 @@ func TestHandler_DMBehavior(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	memoryStore := memory.NewFileStore(tmpDir)
 
-	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore)
+	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore, 0)
 	botID := "mock_bot_id"
 	handler.SetBotID(botID)
 
