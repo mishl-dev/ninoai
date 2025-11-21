@@ -1,5 +1,5 @@
 model_settings:
-  temperature: 1.5
+  temperature: 1
   top_p: 1
 delays:
   message_processing: 1.5

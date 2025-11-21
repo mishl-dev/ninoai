@@ -21,7 +21,7 @@ func LoadConfig(path string) (*Config, error) {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		// Set default values
-		config.ModelSettings.Temperature = 1.5
+		config.ModelSettings.Temperature = 1
 		config.ModelSettings.TopP = 1
 		config.Delays.MessageProcessing = 0.5
 		return config, nil
