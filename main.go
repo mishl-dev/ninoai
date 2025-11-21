@@ -35,8 +35,8 @@ func main() {
 	embeddingKey := os.Getenv("EMBEDDING_API_KEY")
 	hfKey := os.Getenv("HF_API_KEY")
 
-	if token == "" || cerebrasKey == "" || embeddingKey == "" {
-		log.Fatal("Missing required environment variables (DISCORD_TOKEN, CEREBRAS_API_KEY, EMBEDDING_API_KEY)")
+	if token == "" || cerebrasKey == "" || embeddingKey == "" || hfKey == "" {
+		log.Fatal("Missing required environment variables (DISCORD_TOKEN, CEREBRAS_API_KEY, EMBEDDING_API_KEY, HF_API_KEY)")
 	}
 
 	embeddingURL := os.Getenv("EMBEDDING_API_URL")
