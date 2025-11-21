@@ -9,12 +9,14 @@ import (
 )
 
 type TaskAgent struct {
-	client CerebrasClient
+	cerebrasClient   CerebrasClient
+	classifierClient Classifier
 }
 
-func NewTaskAgent(client CerebrasClient) *TaskAgent {
+func NewTaskAgent(c CerebrasClient, cl Classifier) *TaskAgent {
 	return &TaskAgent{
-		client: client,
+		cerebrasClient:   c,
+		classifierClient: cl,
 	}
 }
 
@@ -22,49 +24,66 @@ func NewTaskAgent(client CerebrasClient) *TaskAgent {
 // If it is, it returns true and a refusal message in character.
 // If not, it returns false and an empty string.
 func (ta *TaskAgent) CheckTask(userMsg string) (bool, string) {
-	prompt := fmt.Sprintf(`Analyze the following user message to Nino Nakano (a Discord bot with a Tsundere personality).
+	// 1. Classify the message
+	labels := []string{
+		"chat message",
+		"request for long writing task",
+		"request for code generation",
+		"request for homework help",
+		"request for essay",
+	}
 
-User Message: "%s"
+	label, score, err := ta.classifierClient.Classify(userMsg, labels)
+	if err != nil {
+		log.Printf("Error classifying task: %v", err)
+		// Fallback to assuming it's safe if classifier fails
+		return false, ""
+	}
 
-Is the user asking for a LONG or COMPLEX writing task?
-Examples of such tasks:
-- "Write a 4000-word essay about..."
-- "Write a story about..." (if it implies length)
-- "Generate code for..."
-- "Write an article about..."
-- "Summarize this entire book..."
+	log.Printf("Task Classification: '%s' (score: %.2f)", label, score)
 
-You are NOT to fulfill the request. You are to DETECT if it is a request for a long/complex output that an AI tool would do, but a "girl on Discord" would refuse.
+	// If it's just a chat message, we're good
+	if label == "chat message" {
+		return false, ""
+	}
 
-If YES (it is a long task):
-Reply as Nino Nakano. Refuse the request immediately.
+	// If confidence is low, give benefit of doubt
+	// Only treat as a task if we're confident (score >= 0.6)
+	if score < 0.51 {
+		log.Printf("Score too low, assuming chat message")
+		return false, ""
+	}
+
+	// 2. Generate Refusal
+	// We know it's a task, so we generate a refusal.
+	prompt := fmt.Sprintf(`User Message: "%s"
+
+
+The user is asking for a complex task (writing/coding/homework). You are Nino Nakano.
+Refuse this request.
 - Be mocking and arrogant.
 - Tell them you are not their secretary or AI assistant.
 - Tell them to do their own homework.
 - Keep it short (1-2 sentences).
 - Do NOT start with "Nino:" or quotes. Just the message.
 
-If NO (it is a normal chat message, question, or short request):
-Reply with exactly "[NO]".
-
-Response:`, userMsg)
+Chat Style (Discord Mode):
+- Type like a normal Discord user: mostly lowercase, minimal punctuation, short sentences.
+- Use abbreviations (idk, rn, tbh) but keep them very minimal.
+- No default unicode emojis. Use punctuation like "?!" or "..." for expression.
+- Be brief. Maximum 1-2 sentences. No filler.
+- Occasional exaggerations allowed (e.g., "???", "!!") but keep it classy.`, userMsg)
 
 	messages := []cerebras.Message{
-		{Role: "system", Content: "You are a task filter agent. You detect long writing tasks and generate refusals."},
+		{Role: "system", Content: "You are Nino Nakano. You refuse to do work for others."},
 		{Role: "user", Content: prompt},
 	}
 
-	resp, err := ta.client.ChatCompletion(messages)
+	resp, err := ta.cerebrasClient.ChatCompletion(messages)
 	if err != nil {
-		log.Printf("Error checking task: %v", err)
-		return false, ""
+		log.Printf("Error generating refusal: %v", err)
+		return true, "Hah? Do it yourself. I'm busy." // Fallback refusal
 	}
 
-	cleaned := strings.TrimSpace(resp)
-
-	if strings.Contains(strings.ToUpper(cleaned), "[NO]") {
-		return false, ""
-	}
-
-	return true, cleaned
+	return true, strings.TrimSpace(resp)
 }

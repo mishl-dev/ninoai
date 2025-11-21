@@ -93,8 +93,8 @@ type mockDiscordSession struct {
 	ChannelMessageSendComplexFunc func(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error)
 	ChannelTypingFunc             func(channelID string, options ...discordgo.RequestOption) error
 	UserFunc                      func(userID string) (*discordgo.User, error)
-	ChannelFunc            func(channelID string, options ...discordgo.RequestOption) (*discordgo.Channel, error)
-	GuildEmojisFunc        func(guildID string, options ...discordgo.RequestOption) ([]*discordgo.Emoji, error)
+	ChannelFunc                   func(channelID string, options ...discordgo.RequestOption) (*discordgo.Channel, error)
+	GuildEmojisFunc               func(guildID string, options ...discordgo.RequestOption) ([]*discordgo.Emoji, error)
 }
 
 func (m *mockDiscordSession) ChannelMessageSend(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error) {
@@ -154,7 +154,7 @@ func TestMessageFlow(t *testing.T) {
 	mockMemory := &mockMemoryStore{}
 	mockSession := &mockDiscordSession{}
 
-	handler := NewHandler(mockCerebras, mockEmbedding, mockMemory, 0)
+	handler := NewHandler(mockCerebras, &MockClassifier{}, mockEmbedding, mockMemory, 0)
 	handler.SetBotID("testbot")
 
 	// Spies

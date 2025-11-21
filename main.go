@@ -4,6 +4,7 @@ import (
 	"log"
 	"ninoai/pkg/bot"
 	"ninoai/pkg/cerebras"
+	"ninoai/pkg/classifier"
 	"ninoai/pkg/config"
 	"ninoai/pkg/embedding"
 	"ninoai/pkg/memory"
@@ -32,6 +33,7 @@ func main() {
 	token := os.Getenv("DISCORD_TOKEN")
 	cerebrasKey := os.Getenv("CEREBRAS_API_KEY")
 	embeddingKey := os.Getenv("EMBEDDING_API_KEY")
+	hfKey := os.Getenv("HF_API_KEY")
 
 	if token == "" || cerebrasKey == "" || embeddingKey == "" {
 		log.Fatal("Missing required environment variables (DISCORD_TOKEN, CEREBRAS_API_KEY, EMBEDDING_API_KEY)")
@@ -44,6 +46,7 @@ func main() {
 	// Initialize Clients
 	cerebrasClient := cerebras.NewClient(cerebrasKey, cfg.ModelSettings.Temperature, cfg.ModelSettings.TopP)
 	embeddingClient := embedding.NewClient(embeddingKey, embeddingURL)
+	classifierClient := classifier.NewClient(hfKey)
 
 	// Initialize Memory Store (SurrealDB)
 	surrealHost := os.Getenv("SURREAL_DB_HOST")
@@ -69,7 +72,7 @@ func main() {
 	memoryStore := memory.NewSurrealStore(surrealClient)
 
 	// Initialize Bot Handler
-	handler := bot.NewHandler(cerebrasClient, embeddingClient, memoryStore, cfg.Delays.MessageProcessing)
+	handler := bot.NewHandler(cerebrasClient, classifierClient, embeddingClient, memoryStore, cfg.Delays.MessageProcessing)
 
 	// Create Discord Session
 	dg, err := discordgo.New("Bot " + token)

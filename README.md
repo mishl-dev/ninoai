@@ -35,6 +35,7 @@ NinoAI uses a sophisticated memory flow:
 - **Discord Bot Token** ([Create one here](https://discord.com/developers/applications))
 - **Cerebras API Key** ([Get one here](https://cerebras.ai/))
 - **Embedding API ([mishl-dev/text-embed-api](https://github.com/mishl-dev/text-embed-api))** ([hosted](https://github.com/mishl-dev/text-embed-api/))
+- **HUGGGINGFACE API KEY** ([Create one here](https://huggingface.co/settings/tokens/new))
 
 ## 🚀 Quick Start
 

@@ -181,7 +181,7 @@ func (vs *FileStore) saveRecentMessages(userId string, messages []string) error 
 	return os.WriteFile(path, data, 0644)
 }
 
-// AddRecentMessage adds a message to the recent messages cache (max 5)
+// AddRecentMessage adds a message to the recent messages cache (max 15)
 func (vs *FileStore) AddRecentMessage(userId, message string) error {
 	vs.mu.Lock()
 	defer vs.mu.Unlock()
@@ -193,9 +193,9 @@ func (vs *FileStore) AddRecentMessage(userId, message string) error {
 
 	messages = append(messages, message)
 
-	// Keep only last 5 messages
-	if len(messages) > 5 {
-		messages = messages[len(messages)-5:]
+	// Keep only last 15 messages
+	if len(messages) > 15 {
+		messages = messages[len(messages)-15:]
 	}
 
 	return vs.saveRecentMessages(userId, messages)

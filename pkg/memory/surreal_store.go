@@ -84,13 +84,33 @@ func (s *SurrealStore) Search(userId string, queryVector []float32, limit int) (
 	}
 
 	log.Printf("[DEBUG] VectorSearch returned %d rows", len(rows))
+
+	const similarityThreshold = 0.6 // Only include memories with good similarity
 	var texts []string
+
 	for _, row := range rows {
 		if rowMap, ok := row.(map[string]interface{}); ok {
 			if text, ok := rowMap["text"].(string); ok {
 				similarity := rowMap["similarity"]
-				log.Printf("Memory match: '%s' (similarity: %v)", text, similarity)
-				texts = append(texts, text)
+
+				// Check if similarity meets threshold
+				var simScore float64
+				switch v := similarity.(type) {
+				case float64:
+					simScore = v
+				case float32:
+					simScore = float64(v)
+				default:
+					log.Printf("Unknown similarity type: %T", similarity)
+					continue
+				}
+
+				if simScore >= similarityThreshold {
+					log.Printf("Memory match: '%s' (similarity: %.4f)", text, simScore)
+					texts = append(texts, text)
+				} else {
+					log.Printf("Skipping low-similarity memory: '%s' (similarity: %.4f)", text, simScore)
+				}
 			}
 		}
 	}
@@ -112,7 +132,7 @@ func (s *SurrealStore) AddRecentMessage(userId, message string) error {
 		return err
 	}
 
-	// Cleanup old messages (keep last 10)
+	// Cleanup old messages (keep last 15)
 	// Changed to SELECT id, timestamp (not SELECT VALUE) since we need to order by timestamp
 	query := `
 		DELETE recent_messages
@@ -121,7 +141,7 @@ func (s *SurrealStore) AddRecentMessage(userId, message string) error {
 			SELECT id, timestamp FROM recent_messages
 			WHERE user_id = $user_id
 			ORDER BY timestamp DESC
-			LIMIT 10
+			LIMIT 15
 		).id;
 	`
 	_, err = s.client.Query(query, map[string]interface{}{"user_id": userId})

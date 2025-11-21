@@ -52,11 +52,15 @@ type EmbeddingClient interface {
 	Embed(text string) ([]float32, error)
 }
 
+type Classifier interface {
+	Classify(text string, labels []string) (string, float64, error)
+}
+
 type Handler struct {
 	cerebrasClient         CerebrasClient
+	classifierClient       Classifier
 	embeddingClient        EmbeddingClient
 	memoryStore            memory.Store
-	memoryAgent            *MemoryAgent
 	taskAgent              *TaskAgent
 	botID                  string
 	emojiCache             map[string][]string // guildID -> filtered emoji names
@@ -68,13 +72,13 @@ type Handler struct {
 	messageProcessingDelay time.Duration
 }
 
-func NewHandler(c CerebrasClient, e EmbeddingClient, m memory.Store, messageProcessingDelay float64) *Handler {
+func NewHandler(c CerebrasClient, cl Classifier, e EmbeddingClient, m memory.Store, messageProcessingDelay float64) *Handler {
 	h := &Handler{
 		cerebrasClient:         c,
+		classifierClient:       cl,
 		embeddingClient:        e,
 		memoryStore:            m,
-		memoryAgent:            NewMemoryAgent(c),
-		taskAgent:              NewTaskAgent(c),
+		taskAgent:              NewTaskAgent(c, cl),
 		emojiCache:             make(map[string][]string),
 		emojiCachePath:         "storage/emoji_cache.json",
 		lastMessageTimes:       make(map[string]time.Time),
@@ -303,26 +307,26 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	recentMsgs := h.getRecentMessages(m.Author.ID)
 
 	if !shouldReply {
-		contextStr := "(No recent context)"
+		// Use Classifier to decide if Nino should respond based on her personality
+		labels := []string{
+			"message directly addressing Nino or Nakano",
+			"discussion about cooking or food",
+			"discussion about fashion or appearance",
+			"discussion about romance or relationships",
+			"someone being pathetic",
+			"someone not taking care of themselves (health, sleep, eating)",
+			"casual conversation or blank message",
+		}
 
-		// Logic to use only the recent 2 messages
-		if len(recentMsgs) > 0 {
-			messagesToUse := recentMsgs
-			if len(recentMsgs) > 6 {
-				messagesToUse = recentMsgs[len(recentMsgs)-6:]
+		label, score, err := h.classifierClient.Classify(m.Content, labels)
+		if err != nil {
+			log.Printf("Error classifying message: %v", err)
+		} else {
+			log.Printf("Reply Decision: '%s' (score: %.2f)", label, score)
+			// Reply if it matches her personality triggers (not casual conversation)
+			if label != "casual conversation unrelated to Nino's interests" && score > 0.6 {
+				shouldReply = true
 			}
-			contextStr = strings.Join(messagesToUse, "\n")
-		}
-
-		// Use LLM to decide with context
-		decisionPrompt := fmt.Sprintf(DecisionPrompt, contextStr, m.Content)
-		decisionMsg := []cerebras.Message{
-			{Role: "system", Content: "You are a decision engine."},
-			{Role: "user", Content: decisionPrompt},
-		}
-		resp, err := h.cerebrasClient.ChatCompletion(decisionMsg)
-		if err == nil && strings.Contains(resp, "[REPLY]") {
-			shouldReply = true
 		}
 	}
 
@@ -442,34 +446,76 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	h.sendSplitMessage(s, m.ChannelID, reply, m.Reference())
+	// Check for memory tag to clean up the user-facing message
+	displayReply := reply
+	if idx := strings.Index(reply, "[MEMORY:"); idx != -1 {
+		displayReply = strings.TrimSpace(reply[:idx])
+	}
+
+	h.sendSplitMessage(s, m.ChannelID, displayReply, m.Reference())
 
 	// 7. Async Updates
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
-		// Add to Rolling Context (Always)
-		// We add the user message AND the bot reply
+
+		// Check for memory tag in the reply
+		finalReply := reply
+		var memoryFact string
+
+		if idx := strings.Index(reply, "[MEMORY:"); idx != -1 {
+			// Extract memory
+			memoryContent := reply[idx:]
+			if endIdx := strings.Index(memoryContent, "]"); endIdx != -1 {
+				memoryFact = strings.TrimSpace(memoryContent[8:endIdx])
+				// Remove tag from the reply that goes to context
+				finalReply = strings.TrimSpace(reply[:idx])
+			}
+		}
+
+		// Add to Rolling Context
 		h.addRecentMessage(m.Author.ID, fmt.Sprintf("%s: %s", displayName, m.Content))
-		h.addRecentMessage(m.Author.ID, fmt.Sprintf("Nino: %s", reply))
+		h.addRecentMessage(m.Author.ID, fmt.Sprintf("Nino: %s", finalReply))
 
-		// Evaluate for Long-Term Memory
-		shouldRemember, fact := h.memoryAgent.EvaluateMemory(m.Content, reply)
-		if shouldRemember {
-			// If worth remembering, we store the extracted fact.
-			// We use the embedding of the FACT for indexing, which is much cleaner than the full interaction.
+		// Store extracted memory if present
+		if memoryFact != "" {
+			// Validate memory importance
+			if !h.isMemoryWorthStoring(memoryFact) {
+				log.Printf("Skipping trivial memory: %s", memoryFact)
+				return
+			}
 
-			// We can re-use the embedding of the user message if it represents the topic well,
-			// or embed the full interaction. Embedding the full interaction is usually better for retrieval context.
-			factEmb, err := h.embeddingClient.Embed(fact)
+			log.Printf("Detected memory update: %s", memoryFact)
+			factEmb, err := h.embeddingClient.Embed(memoryFact)
 			if err == nil {
-				log.Printf("Storing new memory for user %s: %s", m.Author.ID, fact)
-				if err := h.memoryStore.Add(m.Author.ID, fact, factEmb); err != nil {
+				log.Printf("Storing new memory for user %s: %s", m.Author.ID, memoryFact)
+				if err := h.memoryStore.Add(m.Author.ID, memoryFact, factEmb); err != nil {
 					log.Printf("Error storing memory: %v", err)
 				}
 			}
 		}
 	}()
+}
+
+func (h *Handler) isMemoryWorthStoring(fact string) bool {
+	lower := strings.ToLower(fact)
+
+	// Filter out meta-commentary
+	if strings.Contains(lower, "no info") || strings.Contains(lower, "no new info") {
+		return false
+	}
+
+	// Filter out trivial behavior observations
+	if strings.Contains(lower, "emoticon") || strings.Contains(lower, "emoji") {
+		return false
+	}
+
+	// Filter out very short memories
+	if len(fact) < 5 {
+		return false
+	}
+
+	return true
 }
 
 func (h *Handler) sendSplitMessage(s Session, channelID, content string, reference *discordgo.MessageReference) {
@@ -528,9 +574,9 @@ func (h *Handler) clearInactiveUsers() {
 	for range ticker.C {
 		h.lastMessageMu.Lock()
 		for userID, lastTime := range h.lastMessageTimes {
-			// If user has been inactive for 3 minutes, clear their recent memory
-			if time.Since(lastTime) > 3*time.Minute {
-				log.Printf("User %s has been inactive for 3 minutes, clearing recent memory", userID)
+			// If user has been inactive for 30 minutes, clear their recent memory
+			if time.Since(lastTime) > 30*time.Minute {
+				log.Printf("User %s has been inactive for 30 minutes, clearing recent memory", userID)
 				if err := h.memoryStore.ClearRecentMessages(userID); err != nil {
 					log.Printf("Error clearing recent messages for inactive user %s: %v", userID, err)
 				}

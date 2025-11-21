@@ -74,6 +74,15 @@ func (m *MockSession) GuildEmojis(guildID string, options ...discordgo.RequestOp
 	return []*discordgo.Emoji{}, nil
 }
 
+type MockClassifier struct{}
+
+func (m *MockClassifier) Classify(text string, labels []string) (string, float64, error) {
+	if len(labels) > 0 {
+		return labels[0], 0.9, nil
+	}
+	return "", 0, nil
+}
+
 func TestHandler_Flow(t *testing.T) {
 	// Load .env from project root
 	if err := godotenv.Load("../../.env"); err != nil {
@@ -116,7 +125,7 @@ func TestHandler_Flow(t *testing.T) {
 	}
 
 	// Initialize Handler
-	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore, 0)
+	handler := NewHandler(cerebrasClient, &MockClassifier{}, embeddingClient, memoryStore, 0)
 	botID := "mock_bot_id"
 	handler.SetBotID(botID)
 
@@ -229,7 +238,7 @@ func TestHandler_FlowStructure(t *testing.T) {
 	memoryStore.AddRecentMessage("test_user_structure", "User: How was your day?")
 	memoryStore.AddRecentMessage("test_user_structure", "Nino: It was fine, I guess.")
 
-	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore, 0)
+	handler := NewHandler(cerebrasClient, &MockClassifier{}, embeddingClient, memoryStore, 0)
 	botID := "mock_bot_id"
 	handler.SetBotID(botID)
 
@@ -282,8 +291,8 @@ func TestHandler_RollingContext(t *testing.T) {
 
 	userID := "test_user_rolling"
 
-	// Add more than 5 messages (the limit in FileStore is 5)
-	for i := 1; i <= 8; i++ {
+	// Add more than 15 messages (the limit in FileStore is 15)
+	for i := 1; i <= 20; i++ {
 		msg := "Message " + string(rune('0'+i))
 		memoryStore.AddRecentMessage(userID, msg)
 	}
@@ -293,8 +302,8 @@ func TestHandler_RollingContext(t *testing.T) {
 		t.Fatalf("FAIL: Error getting recent messages: %v", err)
 	}
 
-	if len(recentMsgs) > 5 {
-		t.Fatalf("FAIL: Rolling context not limited (got %d messages, expected max 5)", len(recentMsgs))
+	if len(recentMsgs) > 15 {
+		t.Fatalf("FAIL: Rolling context not limited (got %d messages, expected max 15)", len(recentMsgs))
 	}
 
 	t.Logf("PASS: Rolling context properly limited to %d messages", len(recentMsgs))
@@ -322,7 +331,7 @@ func TestHandler_DMBehavior(t *testing.T) {
 
 	// Override prioritized models for testing
 	cerebras.PrioritizedModels = []cerebras.ModelConfig{
-		{ID: "llama-3.3-70b", MaxCtx: 65536},
+		{ID: "llama3.1-8b", MaxCtx: 65536},
 	}
 
 	tmpDir, err := os.MkdirTemp("", "ninoai_dm_test")
@@ -332,7 +341,7 @@ func TestHandler_DMBehavior(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	memoryStore := memory.NewFileStore(tmpDir)
 
-	handler := NewHandler(cerebrasClient, embeddingClient, memoryStore, 0)
+	handler := NewHandler(cerebrasClient, &MockClassifier{}, embeddingClient, memoryStore, 0)
 	botID := "mock_bot_id"
 	handler.SetBotID(botID)
 
