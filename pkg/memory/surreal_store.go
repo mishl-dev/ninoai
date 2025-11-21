@@ -59,7 +59,55 @@ func (s *SurrealStore) Init() error {
 	return err
 }
 
+func (s *SurrealStore) detectDuplicate(userId string, vector []float32, threshold float64) (bool, float64, string, error) {
+	rows, err := s.client.VectorSearch("memories", "vector", vector, 1, map[string]interface{}{
+		"user_id": userId,
+	})
+	if err != nil {
+		return false, 0, "", err
+	}
+
+	if len(rows) == 0 {
+		return false, 0, "", nil
+	}
+
+	rowMap, ok := rows[0].(map[string]interface{})
+	if !ok {
+		return false, 0, "", fmt.Errorf("unexpected row format")
+	}
+
+	// Extract similarity
+	var simScore float64
+	switch v := rowMap["similarity"].(type) {
+	case float64:
+		simScore = v
+	case float32:
+		simScore = float64(v)
+	}
+
+	// Extract existing text
+	existingText, _ := rowMap["text"].(string)
+
+	if simScore >= threshold {
+		return true, simScore, existingText, nil
+	}
+
+	return false, simScore, existingText, nil
+}
+
 func (s *SurrealStore) Add(userId string, text string, vector []float32) error {
+	const duplicateThreshold = 0.8
+
+	isDup, sim, existingText, err := s.detectDuplicate(userId, vector, duplicateThreshold)
+	if err != nil {
+		log.Printf("[DEBUG] Error checking for duplicates: %v", err)
+	} else if isDup {
+		return fmt.Errorf(
+			"duplicate memory detected (similarity: %.4f): existing='%s', new='%s'",
+			sim, existingText, text,
+		)
+	}
+
 	item := SurrealMemoryItem{
 		UserID:    userId,
 		Text:      text,
@@ -67,7 +115,7 @@ func (s *SurrealStore) Add(userId string, text string, vector []float32) error {
 		Timestamp: time.Now().Unix(),
 	}
 
-	_, err := s.client.Create("memories", item)
+	_, err = s.client.Create("memories", item)
 	return err
 }
 

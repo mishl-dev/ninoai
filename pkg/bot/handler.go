@@ -490,7 +490,12 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 			if err == nil {
 				log.Printf("Storing new memory for user %s: %s", m.Author.ID, memoryFact)
 				if err := h.memoryStore.Add(m.Author.ID, memoryFact, factEmb); err != nil {
-					log.Printf("Error storing memory: %v", err)
+					// Check if this is a duplicate error
+					if strings.Contains(err.Error(), "duplicate memory") {
+						log.Printf("Skipping duplicate memory: %v", err)
+					} else {
+						log.Printf("Error storing memory: %v", err)
+					}
 				}
 			}
 		}

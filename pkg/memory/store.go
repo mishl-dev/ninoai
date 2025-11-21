@@ -2,6 +2,7 @@ package memory
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -83,6 +84,16 @@ func (vs *FileStore) Add(userId string, text string, vector []float32) error {
 	items, err := vs.load(userId)
 	if err != nil {
 		return err
+	}
+
+	// Check for duplicates using embedding similarity
+	const duplicateThreshold = 0.8
+	for _, item := range items {
+		similarity := cosineSimilarity(vector, item.Vector)
+		if similarity >= duplicateThreshold {
+			// This is a duplicate, skip adding
+			return fmt.Errorf("duplicate memory detected (similarity: %.4f): %s", similarity, text)
+		}
 	}
 
 	items = append(items, MemoryItem{
