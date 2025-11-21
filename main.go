@@ -35,8 +35,18 @@ func main() {
 	embeddingKey := os.Getenv("EMBEDDING_API_KEY")
 	hfKey := os.Getenv("HF_API_KEY")
 
-	if token == "" || cerebrasKey == "" || embeddingKey == "" || hfKey == "" {
-		log.Fatal("Missing required environment variables (DISCORD_TOKEN, CEREBRAS_API_KEY, EMBEDDING_API_KEY, HF_API_KEY)")
+	// Check each required environment variable individually for better error messages
+	if token == "" {
+		log.Fatal("Missing required environment variable: DISCORD_TOKEN")
+	}
+	if cerebrasKey == "" {
+		log.Fatal("Missing required environment variable: CEREBRAS_API_KEY")
+	}
+	if embeddingKey == "" {
+		log.Fatal("Missing required environment variable: EMBEDDING_API_KEY")
+	}
+	if hfKey == "" {
+		log.Fatal("Missing required environment variable: HF_API_KEY")
 	}
 
 	embeddingURL := os.Getenv("EMBEDDING_API_URL")
@@ -53,8 +63,14 @@ func main() {
 	surrealUser := os.Getenv("SURREAL_DB_USER")
 	surrealPass := os.Getenv("SURREAL_DB_PASS")
 
-	if surrealHost == "" || surrealUser == "" || surrealPass == "" {
-		log.Fatal("Missing required environment variables for SurrealDB (SURREAL_DB_HOST, SURREAL_DB_USER, SURREAL_DB_PASS)")
+	if surrealHost == "" {
+		log.Fatal("Missing required environment variable: SURREAL_DB_HOST")
+	}
+	if surrealUser == "" {
+		log.Fatal("Missing required environment variable: SURREAL_DB_USER")
+	}
+	if surrealPass == "" {
+		log.Fatal("Missing required environment variable: SURREAL_DB_PASS")
 	}
 
 	// Add protocol if missing
