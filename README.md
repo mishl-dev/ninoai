@@ -64,6 +64,7 @@ EMBEDDING_API_KEY=your_embedding_api_key
 SURREAL_DB_HOST=your-surrealdb-host.com
 SURREAL_DB_USER=your_surrealdb_username
 SURREAL_DB_PASS=your_surrealdb_password
+HF_API_KEY=your_huggingface_api_key
 ```
 
 ### 3. Install Dependencies
