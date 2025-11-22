@@ -315,7 +315,7 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 			"discussion about romance or relationships",
 			"someone being pathetic",
 			"someone not taking care of themselves (health, sleep, eating)",
-			"casual conversation or blank message",
+			"casual conversation or blank message without mention of nino",
 		}
 
 		label, score, err := h.classifierClient.Classify(m.Content, labels)
