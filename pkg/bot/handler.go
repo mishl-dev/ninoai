@@ -421,8 +421,10 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 	// [Current User Message] (handled by appending as user message)
 
 	systemPrompt := fmt.Sprintf(SystemPrompt, displayName)
+	memoryInstruction := fmt.Sprintf(MemoryInstruction, displayName)
 	messages := []cerebras.Message{
 		{Role: "system", Content: systemPrompt},
+		{Role: "system", Content: memoryInstruction},
 	}
 	log.Printf("Retrieved memories: %s", retrievedMemories)
 	if retrievedMemories != "" {
