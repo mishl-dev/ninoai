@@ -70,6 +70,8 @@ type Handler struct {
 	lastMessageTimes       map[string]time.Time
 	lastMessageMu          sync.RWMutex
 	messageProcessingDelay time.Duration
+	processingUsers        map[string]bool
+	processingMu           sync.Mutex
 }
 
 func NewHandler(c CerebrasClient, cl Classifier, e EmbeddingClient, m memory.Store, messageProcessingDelay float64) *Handler {
@@ -83,6 +85,7 @@ func NewHandler(c CerebrasClient, cl Classifier, e EmbeddingClient, m memory.Sto
 		emojiCachePath:         "storage/emoji_cache.json",
 		lastMessageTimes:       make(map[string]time.Time),
 		messageProcessingDelay: time.Duration(messageProcessingDelay * float64(time.Second)),
+		processingUsers:        make(map[string]bool),
 	}
 
 	// Load emoji cache from disk
@@ -275,6 +278,21 @@ func (h *Handler) HandleMessage(s Session, m *discordgo.MessageCreate) {
 
 	// Update last message time for the user to track activity
 	h.updateLastMessageTime(m.Author.ID)
+
+	// Check if user is already being processed
+	h.processingMu.Lock()
+	if h.processingUsers[m.Author.ID] {
+		h.processingMu.Unlock()
+		return
+	}
+	h.processingUsers[m.Author.ID] = true
+	h.processingMu.Unlock()
+
+	defer func() {
+		h.processingMu.Lock()
+		delete(h.processingUsers, m.Author.ID)
+		h.processingMu.Unlock()
+	}()
 
 	// Get channel info to check if it's a DM
 	channel, err := s.Channel(m.ChannelID)
