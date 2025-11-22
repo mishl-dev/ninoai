@@ -46,9 +46,9 @@ func (s *SurrealStore) Init() error {
 		DEFINE FIELD IF NOT EXISTS user_id ON memories TYPE string;
 		DEFINE FIELD IF NOT EXISTS text ON memories TYPE string;
 		DEFINE FIELD IF NOT EXISTS timestamp ON memories TYPE int;
-		-- We define the vector field with 768 dimensions
-		DEFINE FIELD IF NOT EXISTS vector ON memories TYPE array<float> ASSERT array::len($value) == 768;
-		DEFINE INDEX IF NOT EXISTS vector_idx ON memories FIELDS vector MTREE DIMENSION 768 DIST COSINE;
+		-- We define the vector field with 2048 dimensions
+		DEFINE FIELD IF NOT EXISTS vector ON memories TYPE array<float> ASSERT array::len($value) == 2048;
+		DEFINE INDEX IF NOT EXISTS vector_idx ON memories FIELDS vector MTREE DIMENSION 2048 DIST COSINE;
 
 		DEFINE TABLE IF NOT EXISTS recent_messages SCHEMAFULL;
 		DEFINE FIELD IF NOT EXISTS user_id ON recent_messages TYPE string;
